@@ -1,0 +1,4 @@
+(library
+ (name switch_builder)
+ (public_name switch-builder)
+ (libraries ocamlgraph opam-repository))
