@@ -68,13 +68,47 @@ let pp ppf { opam; workspace } =
   Format.fprintf ppf "Opam switch:\n%aWorkspace:\n%a" pp_package_set opam
     pp_package_set workspace
 
+let rec increment_least_significant = function
+  | [] -> None
+  | x :: xs -> (
+      match increment_least_significant xs with
+      | Some segments -> Some (x :: segments)
+      | None -> (
+          match int_of_string_opt x with
+          | Some n -> Some (string_of_int (Int.succ n) :: xs)
+          | None -> None))
+
+let next_version version =
+  let segments =
+    version |> OpamPackage.Version.to_string |> String.split_on_char '.'
+  in
+  match increment_least_significant segments with
+  | None -> None
+  | Some segments ->
+      segments |> String.concat "." |> OpamPackage.Version.of_string |> fun x ->
+      Some x
+
 let opam_file_depends pkg : OpamTypes.filtered_formula =
   let name = OpamPackage.name pkg in
   let version = OpamPackage.version pkg in
-  Atom
-    ( name,
-      Atom (Constraint (`Eq, FString (OpamPackage.Version.to_string version)))
-    )
+  match next_version version with
+  | None ->
+      Atom
+        ( name,
+          Atom
+            (Constraint (`Eq, FString (OpamPackage.Version.to_string version)))
+        )
+  | Some next_version ->
+      Atom
+        ( name,
+          And
+            ( Atom
+                (Constraint
+                   (`Geq, FString (OpamPackage.Version.to_string version))),
+              Atom
+                (Constraint
+                   (`Lt, FString (OpamPackage.Version.to_string next_version)))
+            ) )
 
 let opam_file_x_provided pkgs =
   OpamTypesBase.nullify_pos
